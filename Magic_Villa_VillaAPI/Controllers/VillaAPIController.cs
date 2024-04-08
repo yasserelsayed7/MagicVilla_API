@@ -4,11 +4,13 @@ using Magic_Villa_VillaAPI.Data;
 using Magic_Villa_VillaAPI.Models;
 using Magic_Villa_VillaAPI.Models.DTO;
 using Magic_Villa_VillaAPI.Repository.IRepositpory;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
+using System.Text.Json;
 
 namespace Magic_Villa_VillaAPI.Controllers
 {
@@ -31,13 +33,31 @@ namespace Magic_Villa_VillaAPI.Controllers
         
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task< ActionResult<APIResponse>> GetVillas()
+        [ResponseCache(CacheProfileName= "Default30")]
+        public async Task< ActionResult<APIResponse>> GetVillas([FromQuery(Name = "filterOccupancy")] int? occupancy, [FromQuery] string? search, int pageSize = 0, int pageNumber = 1)
         {
             try
             {
-                _logger.LogInformation("Get All villas");
-                IEnumerable<Villa> villalist = await _dbVilla.GetAllAsync();
-                _response.Result = _mapper.Map<List<VillaDTO>>(villalist);
+                IEnumerable<Villa> villaList;
+
+                if (occupancy > 0)
+                {
+                    villaList = await _dbVilla.GetAllAsync(u => u.Occupancy == occupancy, pageSize: pageSize,
+                        pageNumber: pageNumber);
+                }
+                else
+                {
+                    villaList = await _dbVilla.GetAllAsync(pageSize: pageSize,
+                        pageNumber: pageNumber);
+                }
+                if (!string.IsNullOrEmpty(search))
+                {
+                    villaList = villaList.Where(u => u.Name.ToLower().Contains(search));
+                }
+                Pagination pagination = new() { PageNumber = pageNumber, PageSize = pageSize };
+
+                Response.Headers.Add("X-Pagination", JsonSerializer.Serialize(pagination));
+                _response.Result = _mapper.Map<List<VillaDTO>>(villaList);
                 _response.StatusCode = HttpStatusCode.OK;
                 return Ok(_response);
             }
@@ -51,6 +71,7 @@ namespace Magic_Villa_VillaAPI.Controllers
             return _response;
         }
         [HttpGet("{id:int}", Name = "GetVilla")]
+        [Authorize(Roles ="admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -86,19 +107,20 @@ namespace Magic_Villa_VillaAPI.Controllers
 
         
         [HttpPost]
+        [Authorize(Roles ="admin")]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task< ActionResult<APIResponse>> CreateVilla ([FromBody]VillaCreateDTO createDto)
         {
             try { 
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
+            //if (!ModelState.IsValid)
+            //{
+            //    return BadRequest(ModelState);
+            //}
             if (await _dbVilla.GetAsync(u=>u.Name.ToLower()== createDto.Name.ToLower())!=null)
             {
-                ModelState.AddModelError("", "villa name already existed");
+                ModelState.AddModelError("ErrorMessages", "villa name already existed");
                 return BadRequest(ModelState);
             }
             if (createDto == null)
@@ -142,6 +164,7 @@ namespace Magic_Villa_VillaAPI.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
 
         [HttpDelete("{id:int}",Name ="DeleteVilla")]
+        [Authorize(Roles ="admin")]
         public async Task <ActionResult<APIResponse>> DeleteVilla(int id)
         {
             try { 
@@ -176,6 +199,8 @@ namespace Magic_Villa_VillaAPI.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [HttpPut("{id:int}",Name ="UpdateVilla")]
+        [Authorize(Roles = "admin")]
+
         public ActionResult<APIResponse> UpdateVilaa(int id , [FromBody] VillaUpdateDTO updateDTO) {
             try { 
             if (updateDTO == null || id!= updateDTO.Id)

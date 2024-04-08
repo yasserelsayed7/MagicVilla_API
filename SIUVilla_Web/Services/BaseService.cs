@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using SIUVilla_Web.Models;
 using SIUVilla_Web.Services.IServices;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -49,10 +50,38 @@ namespace SIUVilla_Web.Services
                         break;
                 }
                 HttpResponseMessage apiResponse = null;
-                apiResponse= await client.SendAsync(message);
+                if (!string.IsNullOrEmpty(apiRequest.Token))
+                {
+                    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiRequest.Token);
+                }
+
+                apiResponse = await client.SendAsync(message);
+
+
                 var apiContent = await apiResponse.Content.ReadAsStringAsync();
-                var APIResponse = JsonConvert.DeserializeObject<T>(apiContent);
+
+                try
+                {
+                    APIResponse ApiResponse = JsonConvert.DeserializeObject<APIResponse>(apiContent);
+                    if (apiResponse.StatusCode==HttpStatusCode.BadRequest||
+                        apiResponse.StatusCode == HttpStatusCode.NotFound)
+                    {
+                        ApiResponse.StatusCode = HttpStatusCode.BadRequest;
+                        ApiResponse.IsSuccess = false;
+                        var res = JsonConvert.SerializeObject(ApiResponse);
+                        var returnObj= JsonConvert.DeserializeObject<T>(res);
+                        return returnObj;
+                    }
+                }
+                catch (Exception)
+                {
+                    var exceptionResponse = JsonConvert.DeserializeObject<T>(apiContent);
+                    return exceptionResponse;
+
+                }
+                var APIResponse = JsonConvert.DeserializeObject<T> (apiContent);
                 return APIResponse;
+                
             }
             catch (Exception e)
             {

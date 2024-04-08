@@ -8,9 +8,9 @@ namespace Magic_Villa_VillaAPI.Models
         [Key] //Pk
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]  // automatically increament by one 
         public int Id { get; set; }
+        [Required]
         public string Name { get; set; }
         public string Details { get; set; }
-        [Required]    
         public double Rate { get; set; }
         public int Sqft { get; set; }
         public int Occupancy { get; set; }

@@ -10,5 +10,6 @@ namespace SIUVilla_Web.Models.DTO
         [Required]
         public int villaId { get; set; }
         public string SpecialDetails { get; set; }
+        public VillaDTO Villa { get; set; }
     }
 }
